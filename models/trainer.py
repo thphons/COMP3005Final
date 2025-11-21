@@ -1,8 +1,19 @@
-from sqlalchemy import Column, Integer, String
-from ..db import Base
+from datetime import datetime
+
+from sqlalchemy import Column, Integer, DateTime, String
+from sqlalchemy.orm import declarative_base
+
+Base = declarative_base()
+
 
 class Trainer(Base):
     __tablename__ = "trainers"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String)
+    username = Column(String(100), nullable=False)
+    password_hash = Column(String(100), nullable=False)
+    name = Column(String(100), nullable=False)
+    dob = Column(DateTime(), default=datetime.now)
+    gender = Column(String(100), nullable=False)
+    email = Column(String(100), nullable=False)
+    phone = Column(String(100), nullable=False)

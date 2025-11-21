@@ -1,5 +1,13 @@
+from .admin import Administrator
 from .member import Member
 from .trainer import Trainer
-from .admin import Administrator
 
-__all__ = ["Member", "Trainer", "Administrator"]
+__all__ = [
+    "Member",
+    "Trainer",
+    "Administrator",
+    "HealthMetric",
+    "Session",
+    "Availability",
+    "Room",
+]
