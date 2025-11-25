@@ -84,12 +84,14 @@ memberHelpMsg = (
     "update your current email address\n"
     "   updateMemberPhone <phone>                                                       "
     "update your current phone number\n"
-    "   logGoal <target_date> <weight> <height> <VO2max> <body_comp> <resting_hr>       "
+    "   logGoal <target_date> <weight> <height> <vo2max> <body_comp> <resting_hr>       "
     "add a new goal or update your current goal\n"
-    "   logMetrics <weight> <height> <VO2max> <body_comp> <resting_hr>                  "
+    "   logMetrics <weight> <height> <vo2max> <body_comp> <resting_hr>                  "
     "log your current health metrics\n"
     "   showDashboard                                                                   "
     "display your goal and health metrics\n"
+    "   logout                                                                          "
+    "log out of the session\n"
     "   exit                                                                            "
     "exit the program\n"
 )
@@ -98,10 +100,12 @@ trainerHelpMsg = (
     "\nValid commands are:\n"
     "   help                                                                            "
     "list all commands\n"
-    "   registerMember <username> <password> <name> <dob> <gender> <email> <phone>      "
-    "register as a member\n"
-    "   login <login_type> <username> <password>                                        "
-    "login\n"
+    "   lookupMember <name>                                                             "
+    "lookup the member with the specified name\n"
+    "   logout                                                                          "
+    "log out of the session\n"
+    "   addAvailability <start_time> <end_time> <type>                                  "
+    "add a new availability\n"
     "   exit                                                                            "
     "exit the program\n"
 )
@@ -131,6 +135,29 @@ session_data = {}
 
 def printMember(member):
     print(f"\nId: {member.id},\nUsername: {member.username},\nName: {member.name},\nDOB: {member.dob}\nGender: {member.gender},\nEmail: {member.email},\nPhone: {member.phone}\n")
+
+def printMemberDetails(member):
+    print(f"\nId: {member.id},\nUsername: {member.username},\nName: {member.name},\nDOB: {member.dob}\nGender: {member.gender},\nEmail: {member.email},\nPhone: {member.phone}\n")
+
+    #show goal
+    goal_query = select(Health_Metric).where(Health_Metric.user_id == member.id, Health_Metric.record_type == "goal")
+    goal = session.scalars(goal_query).first()
+
+    if not goal:
+        print("No current goal.\n")
+    else:
+        print("Current Goal:")
+        printMetric(goal)
+
+    #show health stats
+    record_query = select(Health_Metric).where(Health_Metric.user_id == member.id, Health_Metric.record_type == "record").order_by(Health_Metric.date.desc())
+    record = session.scalars(record_query).first()
+
+    if not record:
+        print("\nNo logged health metrics.\n")
+    else:
+        print("\nShowing Latest Record:")
+        printMetric(record)
 
 def printMetric(metric):
     if metric.record_type == "goal":
@@ -402,7 +429,7 @@ def showDashboard(args):
         printMetric(goal)
 
     #show health stats
-    records_query = select(Health_Metric).where(Health_Metric.user_id == session_data['id'], Health_Metric.record_type == "record")
+    records_query = select(Health_Metric).where(Health_Metric.user_id == session_data['id'], Health_Metric.record_type == "record").order_by(Health_Metric.date.desc())
     records = session.scalars(records_query).all()
 
     if not records:
@@ -421,9 +448,72 @@ def showDashboard(args):
 def addAvailability(args):
     print("adding new availability...")
 
+    #check arguments
+    if not checkArgumentCount(args, 3):
+        return
+    
+    if not validDate(args[0]):
+        return 
+
+    if not validDate(args[1]):
+        return
+
+    #check for availability conflicts
+    availability_query = select(Availability).where(Availability.trainer_id == session_data['id'])
+    availabilities = session.scalars(availability_query).all()
+
+    startTime = datetime.strptime(args[0], "%Y-%m-%d")
+    endTime = datetime.strptime(args[1], "%Y-%m-%d")
+
+    for availability in availabilities:
+        if  ((startTime < availability.start_time and 
+             endTime > availability.start_time) or
+            (startTime > availability.start_time and
+             endTime < availability.end_time) or
+            (startTime < availability.end_time and
+             endTime > availability.end_time) or
+            (startTime < availability.start_time and
+             endTime > availability.end_time)):
+            print("Availability conflicts with other availabilities.")
+            return
+    
+    #check for scheduled conflicts
+
+    newAvailability = Availability(
+        trainer_id = session_data['id'],
+        start_time = args[0],
+        end_time = args[1],
+        availability_type = args[2],
+    )
+
+    session.add(newAvailability)
+    session.commit()
+
+    print("Successfully added new availability.")
+
 ## Function 6 -- Member Lookup
 def lookupMember(args):
     print("looking up member...")
+
+    #check arguments
+    if not (checkArgumentCount(args, 1) or checkArgumentCount(args, 2)):
+        return
+
+    if len(args) == 2:
+        member_name = args[0] + " " + args[1]
+    elif len(args) == 1:
+        member_name = args[0]
+    else:
+        checkArgumentCount(args, -1)
+
+    member_query = select(Member).where(Member.name == member_name)
+    member = session.scalars(member_query).first()
+
+    if not member:
+        print(f"no member found named {args[0]}")
+        return
+
+    printMemberDetails(member)
 
 ###############################
 ##  Administrative Functions ##
@@ -488,6 +578,10 @@ def commandTrainer(command, args, source):
             print(trainerHelpMsg)
         case "logout":
             logout()
+        case "addAvailability":
+            addAvailability(args)
+        case "lookupMember":
+            lookupMember(args)
         case _:
             print("trainer command not recognized:", source)
 

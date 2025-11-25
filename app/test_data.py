@@ -1,6 +1,6 @@
 import sys
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Add parent directory to path so models is importable
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.member import Member
 from models.admin import Administrator
 from models.trainer import Trainer
+from models.health_metric import Health_Metric
 from models.base import Base
 
 
@@ -18,38 +19,43 @@ def reset(engine):
 
 def createInitialRecords(session):
 
-    # 30 unique members with real names
+    # 150 unique members with real names
+    member_names = [
+        "Alice Smith", "Bob Johnson", "Carol Williams", "David Brown", "Emma Davis",
+        "Frank Miller", "Grace Wilson", "Henry Moore", "Iris Taylor", "Jack Anderson",
+        "Karen Thomas", "Liam Jackson", "Mia White", "Noah Harris", "Olivia Martin",
+        "Peter Garcia", "Quinn Rodriguez", "Ryan Martinez", "Sophie Hernandez", "Thomas Lopez",
+        "Uma Gonzalez", "Victor Perez", "Wendy Sanchez", "Xavier Morris", "Yara Rogers",
+        "Zoe Reed", "Adam Cook", "Bella Morgan", "Charlie Bell", "Diana Murphy",
+        "Ethan Foster", "Fiona Green", "George Hall", "Hannah Hill", "Isaac Jones",
+        "Julia King", "Kevin Knight", "Laura Lewis", "Mason Lopez", "Nora Martinez",
+        "Oscar Miller", "Piper Moore", "Quinn Nelson", "Rachel Oliver", "Samuel Parker",
+        "Tina Peterson", "Ulysses Phillips", "Violet Price", "William Ramirez", "Xena Reed",
+        "Yolanda Reynolds", "Zachary Richardson", "Amber Roberts", "Brandon Rodriguez", "Chloe Rogers",
+        "Derek Ross", "Elena Russell", "Felix Ryan", "Gina Sanchez", "Hunter Sanders",
+        "Ivy Scott", "Jack Sharp", "Kayla Shaw", "Levi Shelton", "Megan Short",
+        "Nathan Silva", "Olivia Simpson", "Parker Simmons", "Quinn Smith", "Riley Snyder",
+        "Samantha Solis", "Tristan Sparks", "Uma Spears", "Vincent Spencer", "Willa Stacks",
+        "Xander Stafford", "Yara Stahl", "Zeke Stanton", "Alice Stark", "Benjamin Stearns",
+        "Charlotte Steele", "Daniel Stein", "Evelyn Stephens", "Ethan Stevens", "Fiona Stewart",
+        "Gabriel Stokes", "Hannah Stone", "Henry Stout", "Iris Strickland", "Jack Strong",
+        "Kayla Stuart", "Liam Stubbs", "Mia Studley", "Noah Sturm", "Olivia Styles",
+        "Parker Suarez", "Quinn Summers", "Rachel Summerville", "Samuel Summers", "Tina Sumner",
+        "Ulysses Sundberg", "Violet Sunkel", "William Sunner", "Xena Suplee", "Yolanda Swain",
+        "Zachary Swam", "Amber Swan", "Brandon Swank", "Chloe Swanson", "Derek Swart",
+        "Elena Swartz", "Felix Sweat", "Gina Sweatt", "Hunter Sweeney", "Ivy Sweeney",
+        "Jack Sweet", "Kayla Sweetland", "Levi Sweterlitsch", "Megan Swetland", "Nathan Swick",
+        "Olivia Swift", "Parker Swindell", "Quinn Swingle", "Riley Swinton", "Samantha Swisher",
+        "Tristan Swisshelm", "Uma Swords", "Vincent Swyhart", "Willa Sybert", "Xander Sykes",
+        "Yara Sykes", "Zeke Sylk", "Alice Syllabus", "Benjamin Sylvester", "Charlotte Symmes",
+        "Daniel Symons", "Evelyn Symson", "Ethan Sypher", "Fiona Syracuse", "Gabriel Syre",
+        "Hannah Syrett", "Henry Sysyn", "Iris Syverson", "Jack Syvrud", "Kayla Syzslak",
+    ]
+    
     member_data = [
-        ("alice_smith", "Alice Smith", "1992-03-15", "Female", "alice.smith@example.com", "5550000101"),
-        ("bob_johnson", "Bob Johnson", "1988-07-22", "Male", "bob.johnson@example.com", "5550000102"),
-        ("carol_williams", "Carol Williams", "1995-11-08", "Female", "carol.williams@example.com", "5550000103"),
-        ("david_brown", "David Brown", "1990-05-14", "Male", "david.brown@example.com", "5550000104"),
-        ("emma_davis", "Emma Davis", "1993-09-19", "Female", "emma.davis@example.com", "5550000105"),
-        ("frank_miller", "Frank Miller", "1987-01-26", "Male", "frank.miller@example.com", "5550000106"),
-        ("grace_wilson", "Grace Wilson", "1994-06-12", "Female", "grace.wilson@example.com", "5550000107"),
-        ("henry_moore", "Henry Moore", "1989-04-03", "Male", "henry.moore@example.com", "5550000108"),
-        ("iris_taylor", "Iris Taylor", "1996-08-21", "Female", "iris.taylor@example.com", "5550000109"),
-        ("jack_anderson", "Jack Anderson", "1991-02-10", "Male", "jack.anderson@example.com", "5550000110"),
-        ("karen_thomas", "Karen Thomas", "1993-12-05", "Female", "karen.thomas@example.com", "5550000111"),
-        ("liam_jackson", "Liam Jackson", "1990-10-17", "Male", "liam.jackson@example.com", "5550000112"),
-        ("mia_white", "Mia White", "1994-07-29", "Female", "mia.white@example.com", "5550000113"),
-        ("noah_harris", "Noah Harris", "1988-03-11", "Male", "noah.harris@example.com", "5550000114"),
-        ("olivia_martin", "Olivia Martin", "1995-09-25", "Female", "olivia.martin@example.com", "5550000115"),
-        ("peter_garcia", "Peter Garcia", "1992-05-08", "Male", "peter.garcia@example.com", "5550000116"),
-        ("quinn_rodriguez", "Quinn Rodriguez", "1991-11-30", "Female", "quinn.rodriguez@example.com", "5550000117"),
-        ("ryan_martinez", "Ryan Martinez", "1989-08-14", "Male", "ryan.martinez@example.com", "5550000118"),
-        ("sophie_hernandez", "Sophie Hernandez", "1996-02-22", "Female", "sophie.hernandez@example.com", "5550000119"),
-        ("thomas_lopez", "Thomas Lopez", "1993-06-19", "Male", "thomas.lopez@example.com", "5550000120"),
-        ("uma_gonzalez", "Uma Gonzalez", "1992-01-07", "Female", "uma.gonzalez@example.com", "5550000121"),
-        ("victor_perez", "Victor Perez", "1987-09-16", "Male", "victor.perez@example.com", "5550000122"),
-        ("wendy_sanchez", "Wendy Sanchez", "1994-04-13", "Female", "wendy.sanchez@example.com", "5550000123"),
-        ("xavier_morris", "Xavier Morris", "1990-12-28", "Male", "xavier.morris@example.com", "5550000124"),
-        ("yara_rogers", "Yara Rogers", "1995-03-05", "Female", "yara.rogers@example.com", "5550000125"),
-        ("zoe_reed", "Zoe Reed", "1993-10-11", "Female", "zoe.reed@example.com", "5550000126"),
-        ("adam_cook", "Adam Cook", "1988-06-20", "Male", "adam.cook@example.com", "5550000127"),
-        ("bella_morgan", "Bella Morgan", "1996-08-09", "Female", "bella.morgan@example.com", "5550000128"),
-        ("charlie_bell", "Charlie Bell", "1991-02-14", "Male", "charlie.bell@example.com", "5550000129"),
-        ("diana_murphy", "Diana Murphy", "1994-11-23", "Female", "diana.murphy@example.com", "5550000130"),
+        (f"member_{i}", name, f"198{i % 10}-{(i % 12) + 1:02d}-{(i % 28) + 1:02d}", 
+         ["Male", "Female"][i % 2], f"member{i}@example.com", f"555000{i:04d}")
+        for i, name in enumerate(member_names, 1)
     ]
     
     members = [
@@ -131,3 +137,44 @@ def createInitialRecords(session):
         session.add_all(administrators)
         session.commit()
         print(f"Added {len(administrators)} administrators")
+
+    # Add a goal for the first member
+    
+    # Add 10 health metrics for the first member
+    first_member = session.query(Member).first()
+    if first_member:
+        existing_metrics = session.query(Health_Metric).filter(Health_Metric.user_id == first_member.id).all()
+        if len(existing_metrics) == 0:
+            base_date = datetime.now() - timedelta(days=9)
+            health_metrics = [
+                Health_Metric(
+                    date = base_date + timedelta(days=i),
+                    record_type = 'record',
+                    user_id= first_member.id,
+                    weight = 80.5 - (i * 0.5),
+                    height = 170,
+                    vo2Max = 70 - i,
+                    body_composition = 30 - i,
+                    resting_hr = 70 - i,
+                )
+                for i in range(10)
+            ]
+            session.add_all(health_metrics)
+            session.commit()
+            print(f"Added 10 health metrics for member {first_member.name}")
+
+            # Add a goal for the first member
+            newGoal = Health_Metric(
+                date = "2025-12-01",
+                record_type = 'goal',
+                user_id= first_member.id,
+                weight = 70,
+                height = 170,
+                vo2Max = 60,
+                body_composition = 20,
+                resting_hr = 60,
+            )
+
+            session.add(newGoal)
+            session.commit()
+            print(f"Added a goal for member {first_member.name}")
