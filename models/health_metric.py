@@ -2,8 +2,7 @@ from datetime import datetime
 
 from sqlalchemy import Column, Integer, DateTime, String, ForeignKey
 from sqlalchemy.orm import declarative_base
-
-Base = declarative_base()
+from .base import Base
 
 
 class Health_Metric(Base):
@@ -11,7 +10,7 @@ class Health_Metric(Base):
 
     date = Column(DateTime(), default=datetime.now, primary_key=True)
     record_type = Column(String(100), primary_key=True)
-    user_id = Column(Integer, ForeignKey("member.id"), primary_key=True)
+    user_id = Column(Integer, ForeignKey("members.id"), primary_key=True)
     weight = Column(Integer, nullable=False)
     height = Column(Integer, nullable=False)
     v02Max = Column(Integer, nullable=False)

@@ -6,31 +6,26 @@
 import code
 import re
 import sys
-import os
 from pathlib import Path
-from sqlalchemy import create_engine, ForeignKey
+from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
-from sqlalchemy import Column, Integer, String, DateTime, Text, text
-from sqlalchemy.orm import declarative_base
 from sqlalchemy.orm import sessionmaker
 from datetime import datetime
 
-Base = declarative_base()
+# Add project root to path
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
-## add paths for imports
-model_dir = os.path.abspath('./../models/')
-sys.path.append(model_dir)
+# Import Base and all models
+from models.base import Base
+from models.member import Member
+from models.admin import Administrator
+from models.availability import Availability
+from models.health_metric import Health_Metric
+from models.room import Room
+from models.session import Session as TrainingSession
+from models.trainer import Trainer
 
-## imports for models
-from member import Member
-from admin import Administrator
-from availability import Availability
-from health_metric import Health_Metric
-from room import Room
-from session import Session
-from trainer import Trainer
-
-## import test data creation
+# Import test data
 from test_data import createInitialRecords
 
 debug = False
@@ -47,10 +42,11 @@ url = URL.create(
 
 engine = create_engine(url)
 
+# Create all tables
 Base.metadata.create_all(engine)
 
-Session = sessionmaker(bind=engine)
-session = Session()
+DBSession = sessionmaker(bind=engine)
+session = DBSession()
 
 # insert initial records
 createInitialRecords(session)
@@ -62,76 +58,165 @@ helpMsg = (
     "\nValid commands are:\n"
     "   help                                                    "
     "list all commands\n"
-    "   listStudents                                            "
-    "list all student records\n"
-    "   addStudent <first_name> <last_name> <email> <dob>       "
-    "add a new student record with the specified values\n"
-    "   updateStudentEmail <student_id> <new_email>             "
-    "find the student with the specified id and update their email address\n"
-    "   deleteStudent <student_id>                              "
-    "delete the student record with the specified id\n"
+    "   listMembers                                             "
+    "list all member records\n"
+    "   addMember <username> <name> <email>                     "
+    "add a new member\n"
     "   exit                                                    "
     "exit the program\n"
 )
 
-emailRegex = r"[^@]+@[^@]+\.[^@]+"
+########################
+##  Helper Functions  ##
+########################
 
-# helper functions
-def printStudent(student):
+def printMember(member):
     print(
-        "[Id: "
-        + str(student.student_id)
-        + ", First Name: "
-        + student.first_name
-        + ", Last Name: "
-        + student.last_name
-        + ", Email: "
-        + student.email
-        + ", DOB: "
-        + str(student.dob)
-        + "]"
+        f"[Id: {member.id}, Username: {member.username}, Name: {member.name}, Email: {member.email}]"
     )
 
+def checkArgumentCount(args, count):
+    if len(args) != count:
+        print("incorrect number of arguments!")
+        print("this command takes " + count + " arguments.")
+        return False
+    return True
 
-def listStudents():
-    print("listing all students...")
+def validDate(date):
+    try:
+        dateCheck = datetime.strptime(args[3], "%Y-%m-%d")
+        return True
+    except ValueError:
+        print("invalid Dob.\ndate format is YYYY-mm-dd")
+        return False
+
+def validEmail(email):
+    emailRegex = r"[^@]+@[^@]+\.[^@]+"
+
+    if not re.match(emailRegex, args[2]):
+        print("not a valid email.")
+        return False
+    return True
+
+def validPhone(phone):
+    phoneRegex = r"[0-9]{3}[-.\ ]?[0-9]{3}[-.\ ]?[0-9]{4}"
+
+    if not re.match(emailRegex, args[2]):
+        print("not a valid email.")
+        return False
+    return True
+
+########################
+##  Member Functions  ##
+########################
+
+## Function 1 -- User Registration
+## args -> <name> <>
+def registerMember(args):
+    print("register a new member...")
+
+    #check for correct number of arguments
+    if !(checkArgumentCount(args, 7)):
+        return
+
+    #check for valid arguments
+    if !(validDate(args[3])):
+        return
     
+    if !(validEmail(args[5])):
+        return
+
+    if !(validPhone(args[6])):
+        return
+
+    #register new user
+    newStudent = Student(
+        username=args[0], 
+        password_hash=args[1], 
+        name=args[2], 
+        dob=args[3],
+        gender = args[4],
+        email = args[5],
+        phone = args[6]
+    )
+    session.add(newStudent)
+    session.commit()
+
+## Function 2 -- Profile Management
+def viewProfile(args):
+    print("adding new member...")
+
+def updateProfile(args):
+    print("updating current user...")
+
+def addGoal(args):
+    print("adding/updating goal for current user...")
+
+def addHealthMetric(args):
+    print("adding a new health metric measurement...")
+
+## Function 3 -- Health History
+def healthHistory(args):
+    print("showing member health history...")
+
+## TODO: -- add multiple health metrics at once?
+
+## Function 4 -- Dashboard
+def showDashboard(args):
+    print("showing member dashboard...")
 
 
-def addStudent(args):
-    print("adding new student...")
+#########################
+##  Trainer Functions  ##
+#########################
 
+## Function 5 -- Set Availability
+def addAvailability(args):
+    print("adding new availability...")
 
-def updateStudentEmail(args):
-    print("updating student email...")
+## Function 6 -- Member Lookup
+def lookupMember(args):
+    print("looking up member...")
 
+###############################
+##  Administrative Functions ##
+###############################
 
-def deleteStudent(args):
-    print("deleting student...")
+## Function 7 -- Room Booking
+def bookRoom(args):
+    print("book a room...")
+
+## Function 8 -- Class Management
+def createNewClass(args):
+    print("creating a new class...")
+
+def assignTrainer(args):
+    print("assigning a trainer to a class...")
+
+## TODO: -- update schedules?
 
 
 # create a read-eval-print loop
 class Repl(code.InteractiveConsole):
     def runsource(self, source, filename="<input>", symbol="single"):
+        if not source.strip():
+            return
         tokens = source.split()
         command = tokens[0]
         args = tokens[1:]
         if debug:
-            print("command received: " + command + "\n")
-            print("arguments: ")
-            print(args)
-            print("\n")
+            print(f"command received: {command}\narguments: {args}\n")
         match command:
             case "help":
                 print(helpMsg)
-            case "listStudents":
-                listStudents()
-            case "addStudent":
-                addStudent(args)
-            case "updateStudentEmail":
-                updateStudentEmail(args)
-            case "deleteStudent":
-                deleteStudent(args)
+            case "registerMember":
+                registerMember()
+            case "viewProfile":
+                viewProfile(args)
+            case "healthHistory":
+                healthHistory(args)
+            case "showDashboard":
+                showDashboard(args)
             case "exit" | "quit":
                 exit(0)
             case _:
