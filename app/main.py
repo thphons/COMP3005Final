@@ -66,25 +66,30 @@ helpMsg = (
     "exit the program\n"
 )
 
+#########################
+##  Session Variables  ##
+#########################
+
+currentUser = -1
+userType = "none"
+
 ########################
 ##  Helper Functions  ##
 ########################
 
 def printMember(member):
-    print(
-        f"[Id: {member.id}, Username: {member.username}, Name: {member.name}, Email: {member.email}]"
-    )
+    print(f"\nId: {member.id},\nUsername: {member.username},\nName: {member.name},\nDOB: {member.dob}\nGender: {member.gender},\nEmail: {member.email},\nPhone: {member.phone}\n")
 
 def checkArgumentCount(args, count):
     if len(args) != count:
         print("incorrect number of arguments!")
-        print("this command takes " + count + " arguments.")
+        print(f"this command takes {count} arguments.")
         return False
     return True
 
 def validDate(date):
     try:
-        dateCheck = datetime.strptime(args[3], "%Y-%m-%d")
+        dateCheck = datetime.strptime(date, "%Y-%m-%d")
         return True
     except ValueError:
         print("invalid Dob.\ndate format is YYYY-mm-dd")
@@ -93,7 +98,7 @@ def validDate(date):
 def validEmail(email):
     emailRegex = r"[^@]+@[^@]+\.[^@]+"
 
-    if not re.match(emailRegex, args[2]):
+    if not re.match(emailRegex, email):
         print("not a valid email.")
         return False
     return True
@@ -101,7 +106,7 @@ def validEmail(email):
 def validPhone(phone):
     phoneRegex = r"[0-9]{3}[-.\ ]?[0-9]{3}[-.\ ]?[0-9]{4}"
 
-    if not re.match(emailRegex, args[2]):
+    if not re.match(phoneRegex, phone):
         print("not a valid email.")
         return False
     return True
@@ -116,21 +121,21 @@ def registerMember(args):
     print("register a new member...")
 
     #check for correct number of arguments
-    if !(checkArgumentCount(args, 7)):
+    if not (checkArgumentCount(args, 7)):
         return
 
     #check for valid arguments
-    if !(validDate(args[3])):
+    if not (validDate(args[3])):
         return
     
-    if !(validEmail(args[5])):
+    if not (validEmail(args[5])):
         return
 
-    if !(validPhone(args[6])):
+    if not (validPhone(args[6])):
         return
 
     #register new user
-    newStudent = Student(
+    newMember = Member(
         username=args[0], 
         password_hash=args[1], 
         name=args[2], 
@@ -139,12 +144,16 @@ def registerMember(args):
         email = args[5],
         phone = args[6]
     )
-    session.add(newStudent)
+    session.add(newMember)
     session.commit()
+
+    print("Member registered!")
+    printMember(newMember)
+    print("Please login.")
 
 ## Function 2 -- Profile Management
 def viewProfile(args):
-    print("adding new member...")
+    print("viewing current profile...")
 
 def updateProfile(args):
     print("updating current user...")
@@ -210,7 +219,7 @@ class Repl(code.InteractiveConsole):
             case "help":
                 print(helpMsg)
             case "registerMember":
-                registerMember()
+                registerMember(args)
             case "viewProfile":
                 viewProfile(args)
             case "healthHistory":
