@@ -61,15 +61,52 @@ createInitialRecords(session)
 ## define banner, exit and help messages
 bannerMsg = "COMP3005 Final Project!"
 exitMsg = "bye!"
+#logged out help message
 helpMsg = (
     "\nValid commands are:\n"
-    "   help                                                    "
+    "   help                                                                            "
     "list all commands\n"
-    "   listMembers                                             "
-    "list all member records\n"
-    "   addMember <username> <name> <email>                     "
-    "add a new member\n"
-    "   exit                                                    "
+    "   registerMember <username> <password> <name> <dob> <gender> <email> <phone>      "
+    "register as a member\n"
+    "   login <login_type> <username> <password>                                        "
+    "login\n"
+    "   exit                                                                            "
+    "exit the program\n"
+)
+#logged member help message
+memberHelpMsg = (
+    "\nValid commands are:\n"
+    "   help                                                                            "
+    "list all commands\n"
+    "   registerMember <username> <password> <name> <dob> <gender> <email> <phone>      "
+    "register as a member\n"
+    "   login <login_type> <username> <password>                                        "
+    "login\n"
+    "   exit                                                                            "
+    "exit the program\n"
+)
+#logged trainer help message
+trainerHelpMsg = (
+    "\nValid commands are:\n"
+    "   help                                                                            "
+    "list all commands\n"
+    "   registerMember <username> <password> <name> <dob> <gender> <email> <phone>      "
+    "register as a member\n"
+    "   login <login_type> <username> <password>                                        "
+    "login\n"
+    "   exit                                                                            "
+    "exit the program\n"
+)
+#logged admin help message
+adminHelpMsg = (
+    "\nValid commands are:\n"
+    "   help                                                                            "
+    "list all commands\n"
+    "   registerMember <username> <password> <name> <dob> <gender> <email> <phone>      "
+    "register as a member\n"
+    "   login <login_type> <username> <password>                                        "
+    "login\n"
+    "   exit                                                                            "
     "exit the program\n"
 )
 
@@ -77,9 +114,8 @@ helpMsg = (
 ##  Session Variables  ##
 #########################
 
-sessionUser = -1
-sessionUsername = ""
-sessionType = ""
+# object to store session data
+session_data = {}
 
 ########################
 ##  Helper Functions  ##
@@ -120,7 +156,7 @@ def validPhone(phone):
     return True
 
 def loggedIn():
-    return not (sessionUser == -1)
+    return 'id' in session_data
 
 ######################################
 ##  Requirement Adjacent Functions  ##
@@ -142,9 +178,9 @@ def login(args):
                 print("incorrect username or password.")
                 return
 
-            sessionUser = user.id
-            sessionUsername = user.username
-            sessionType = "member"
+            session_data['id'] = user.id
+            session_data['username'] = user.username
+            session_data['type'] = 'member'
 
             print("Logged in.")
 
@@ -158,9 +194,9 @@ def login(args):
                 print("incorrect username or password.")
                 return
 
-            sessionUser = user.id
-            sessionUsername = user.username
-            sessionType = "trainer"
+            session_data['id'] = user.id
+            session_data['username'] = user.username
+            session_data['type'] = 'trainer'
 
             print("Logged in.")
 
@@ -174,9 +210,9 @@ def login(args):
                 print("incorrect username or password.")
                 return
 
-            sessionUser = user.id
-            sessionUsername = user.username
-            sessionType = "administrator"
+            session_data['id'] = user.id
+            session_data['username'] = user.username
+            session_data['type'] = 'admin'
 
             print("Logged in.")
 
@@ -185,9 +221,7 @@ def login(args):
 
 def logout():
     print("Logging out...")
-    sessionUser = -1
-    sessionUsername = ""
-    sessionType = ""
+    session_data.clear()
     print("Logged out.")
 
 
@@ -196,7 +230,6 @@ def logout():
 ########################
 
 ## Function 1 -- User Registration
-## args -> <name> <>
 def registerMember(args):
     print("register a new member...")
 
@@ -234,6 +267,11 @@ def registerMember(args):
 ## Function 2 -- Profile Management
 def viewProfile(args):
     print("viewing current profile...")
+
+    user_query = select(Member).where(Member.id == session_data['id'])
+    user = session.scalars(user_query).first()
+
+    printMember(user)
 
 def updateProfile(args):
     print("updating current user...")
@@ -284,6 +322,56 @@ def assignTrainer(args):
 
 ## TODO: -- update schedules?
 
+##########################
+##  Command processing  ##
+##########################
+
+def commandLoggedOut(command, args, source):
+    match command:
+        case "help":
+            print(helpMsg)
+        # logged out features
+        case "registerMember":
+            registerMember(args)
+        case "login":
+            login(args)
+        case _:
+                print("command not recognized:", source)
+            
+
+def commandMember(command, args, source):
+    match command:
+        case "help":
+            print(memberHelpMsg)
+        case "logout":
+            logout()
+        case "viewProfile":
+            viewProfile(args)
+        case "healthHistory":
+            healthHistory(args)
+        case "showDashboard":
+            showDashboard(args)
+        case _:
+            print("member command not recognized:", source)
+
+def commandTrainer(command, args, source):
+    match command:
+        case "help":
+            print(trainerHelpMsg)
+        case "logout":
+            logout()
+        case _:
+            print("trainer command not recognized:", source)
+
+def commandAdmin(command, args, source):
+    match command:
+        case "help":
+            print(adminHelpMsg)
+        case "logout":
+            logout()
+        case _:
+            print("admin command not recognized:", source)
+    
 
 # create a read-eval-print loop
 class Repl(code.InteractiveConsole):
@@ -296,29 +384,25 @@ class Repl(code.InteractiveConsole):
         if DEBUG:
             print(f"command received: {command}\narguments: {args}\n")
         if loggedIn():
-            print(f"\nCurrent User: {sessionUsername}\n")
-        match command:
-            case "help":
-                print(helpMsg)
-            case "login":
-                login(args)
-            case "logout":
-                logout()
-            case "registerMember":
-                registerMember(args)
-            case "viewProfile":
-                viewProfile(args)
-            case "healthHistory":
-                healthHistory(args)
-            case "showDashboard":
-                showDashboard(args)
-            case "exit" | "quit":
-                exit(0)
-            case _:
-                print("command not recognized:", source)
+            print(f"\nCurrent User: {session_data['username']}\n")
 
+        if ((command == "exit") or (command == "quit")):
+            exit(0)
+
+        if loggedIn():
+            print(f"Current session: {session_data['type']} -> {session_data['username']}")
+            match session_data['type']:
+                case "member":
+                    commandMember(command, args, source)
+                case "trainer":
+                    commandTrainer(command, args, source)
+                case "admin":
+                    commandAdmin(command, args, source)
+                case _:
+                    commandLoggedOut(command, args, source)
+            return
         
-
+        commandLoggedOut(command, args, source)
 
 ## create an interactive console
 repl = Repl()
