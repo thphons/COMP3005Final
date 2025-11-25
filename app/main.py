@@ -78,10 +78,18 @@ memberHelpMsg = (
     "\nValid commands are:\n"
     "   help                                                                            "
     "list all commands\n"
-    "   registerMember <username> <password> <name> <dob> <gender> <email> <phone>      "
-    "register as a member\n"
-    "   login <login_type> <username> <password>                                        "
-    "login\n"
+    "   viewProfile                                                                     "
+    "view your profile\n"
+    "   updateMemberEmail <email>                                                       "
+    "update your current email address\n"
+    "   updateMemberPhone <phone>                                                       "
+    "update your current phone number\n"
+    "   logGoal <target_date> <weight> <height> <VO2max> <body_comp> <resting_hr>       "
+    "add a new goal or update your current goal\n"
+    "   logMetrics <weight> <height> <VO2max> <body_comp> <resting_hr>                  "
+    "log your current health metrics\n"
+    "   showDashboard                                                                   "
+    "display your goal and health metrics\n"
     "   exit                                                                            "
     "exit the program\n"
 )
@@ -123,6 +131,12 @@ session_data = {}
 
 def printMember(member):
     print(f"\nId: {member.id},\nUsername: {member.username},\nName: {member.name},\nDOB: {member.dob}\nGender: {member.gender},\nEmail: {member.email},\nPhone: {member.phone}\n")
+
+def printMetric(metric):
+    if metric.record_type == "goal":
+        print(f"Target Date: {metric.date}, Weight: {metric.weight}, Height: {metric.height}, VO2max: {metric.vo2Max}, Body Composition: {metric.body_composition}, Resting Heart Rate: {metric.resting_hr}")
+    else:
+        print(f"Log Date: {metric.date}, Weight: {metric.weight}, Height: {metric.height}, VO2max: {metric.vo2Max}, Body Composition: {metric.body_composition}, Resting Heart Rate: {metric.resting_hr}")
 
 def checkArgumentCount(args, count):
     if len(args) != count:
@@ -268,19 +282,104 @@ def registerMember(args):
 def viewProfile(args):
     print("viewing current profile...")
 
-    user_query = select(Member).where(Member.id == session_data['id'])
-    user = session.scalars(user_query).first()
+    user = session.get(Member, session_data['id'])
 
     printMember(user)
 
-def updateProfile(args):
-    print("updating current user...")
+## Update personal details   
+def updateMemberEmail(args):
 
-def addGoal(args):
+    #check for correct number of arguments
+    if not (checkArgumentCount(args, 1)):
+        return
+
+    if not (validEmail(args[0])):
+        return
+
+    print("updating current user email...")
+
+    user = session.get(Member, session_data['id'])
+    user.email = args[0]
+
+    session.commit()
+
+def updateMemberPhone(args):
+
+    #check for correct number of arguments
+    if not (checkArgumentCount(args, 1)):
+        return
+
+    if not (validPhone(args[0])):
+        return
+
+    print("updating current user email...")
+
+    user = session.get(Member, session_data['id'])
+    user.phone = args[0]
+
+    session.commit()
+
+def logGoal(args):
     print("adding/updating goal for current user...")
 
-def addHealthMetric(args):
+    #check arguments...
+    if not checkArgumentCount(args, 6):
+        return
+
+    if not validDate(args[0]):
+        return
+
+    #check if user has a goal...
+    goal_query = select(Health_Metric).where(Health_Metric.user_id == session_data['id'], Health_Metric.record_type == "goal")
+    goal = session.scalars(goal_query).first()
+
+    #no goal, add one
+    if not goal:
+        newGoal = Health_Metric(
+            date = args[0],
+            record_type = 'goal',
+            user_id = session_data['id'],
+            weight = args[1],
+            height = args[2],
+            vo2Max = args[3],
+            body_composition = args[4],
+            resting_hr = args[5],
+        )
+
+        session.add(newGoal)
+        session.commit()
+        return
+
+    #update current goal
+    goal.date = args[0]  
+    goal.weight = args[1]
+    goal.height = args[2]
+    goal.vo2Max = args[3]
+    goal.body_composition = args[4]
+    goal.resting_hr = args[5]  
+
+    session.commit()
+
+def logMetrics(args):
     print("adding a new health metric measurement...")
+
+    #check arguments...
+    if not checkArgumentCount(args, 5):
+        return
+
+    newRecord = Health_Metric(
+        date = datetime.now(),
+        record_type = 'record',
+        user_id = session_data['id'],
+        weight = args[0],
+        height = args[1],
+        vo2Max = args[2],
+        body_composition = args[3],
+        resting_hr = args[4],
+    )
+
+    session.add(newRecord)
+    session.commit()
 
 ## Function 3 -- Health History
 def healthHistory(args):
@@ -288,9 +387,30 @@ def healthHistory(args):
 
 ## TODO: -- add multiple health metrics at once?
 
-## Function 4 -- Dashboard
+## Function 4 -- Dashboard TODO: -- classes?
 def showDashboard(args):
-    print("showing member dashboard...")
+    print("showing member dashboard...\n")
+
+    #show goal
+    goal_query = select(Health_Metric).where(Health_Metric.user_id == session_data['id'], Health_Metric.record_type == "goal")
+    goal = session.scalars(goal_query).first()
+
+    if not goal:
+        print("No current goal.\n")
+    else:
+        print("Current Goal:")
+        printMetric(goal)
+
+    #show health stats
+    records_query = select(Health_Metric).where(Health_Metric.user_id == session_data['id'], Health_Metric.record_type == "record")
+    records = session.scalars(records_query).all()
+
+    if not records:
+        print("\nNo logged health metrics.\n")
+    else:
+        print("\nShowing Records:")
+        for record in records:
+            printMetric(record)
 
 
 #########################
@@ -347,6 +467,14 @@ def commandMember(command, args, source):
             logout()
         case "viewProfile":
             viewProfile(args)
+        case "updateMemberEmail":
+            updateMemberEmail(args)
+        case "updateMemberPhone":
+            updateMemberPhone(args)
+        case "logGoal":
+            logGoal(args)
+        case "logMetrics":
+            logMetrics(args)
         case "healthHistory":
             healthHistory(args)
         case "showDashboard":
