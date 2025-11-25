@@ -9,9 +9,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.member import Member
 from models.admin import Administrator
 from models.trainer import Trainer
+from models.base import Base
+
+
+def reset(engine):
+    Base.metadata.drop_all(engine)
 
 
 def createInitialRecords(session):
+
     # 30 unique members with real names
     member_data = [
         ("alice_smith", "Alice Smith", "1992-03-15", "Female", "alice.smith@example.com", "5550000101"),

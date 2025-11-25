@@ -10,6 +10,7 @@ from pathlib import Path
 from sqlalchemy import create_engine
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import select, insert, update, delete
 from datetime import datetime
 
 # Add project root to path
@@ -26,9 +27,11 @@ from models.session import Session as TrainingSession
 from models.trainer import Trainer
 
 # Import test data
-from test_data import createInitialRecords
+from test_data import createInitialRecords, reset
 
-debug = False
+DEBUG = False
+# Set this flag to True to reset database
+RESET_DATABASE = False
 
 # engine for Postgres
 url = URL.create(
@@ -41,6 +44,10 @@ url = URL.create(
 )
 
 engine = create_engine(url)
+
+# reset if flag is set to true
+if RESET_DATABASE:
+    reset(engine)
 
 # Create all tables
 Base.metadata.create_all(engine)
@@ -70,8 +77,9 @@ helpMsg = (
 ##  Session Variables  ##
 #########################
 
-currentUser = -1
-userType = "none"
+sessionUser = -1
+sessionUsername = ""
+sessionType = ""
 
 ########################
 ##  Helper Functions  ##
@@ -110,6 +118,78 @@ def validPhone(phone):
         print("not a valid email.")
         return False
     return True
+
+def loggedIn():
+    return not (sessionUser == -1)
+
+######################################
+##  Requirement Adjacent Functions  ##
+######################################
+
+def login(args):
+    print("logging in...")
+    if not (checkArgumentCount(args, 3)):
+        return
+    
+    match args[0]:
+        case "member":
+            #login as member
+            user_query = select(Member).where(Member.username == args[1], Member.password_hash == args[2])
+            user = session.scalars(user_query).first()
+
+            if user == None:
+                #login failed
+                print("incorrect username or password.")
+                return
+
+            sessionUser = user.id
+            sessionUsername = user.username
+            sessionType = "member"
+
+            print("Logged in.")
+
+        case "trainer":
+            #login as trainer
+            user_query = select(Trainer).where(Trainer.username == args[1], Trainer.password_hash == args[2])
+            user = session.scalars(user_query).first()
+
+            if user == None:
+                #login failed
+                print("incorrect username or password.")
+                return
+
+            sessionUser = user.id
+            sessionUsername = user.username
+            sessionType = "trainer"
+
+            print("Logged in.")
+
+        case "admin":
+            #login as administrator
+            user_query = select(Administrator).where(Administrator.username == args[1], Administrator.password_hash == args[2])
+            user = session.scalars(user_query).first()
+
+            if user == None:
+                #login failed
+                print("incorrect username or password.")
+                return
+
+            sessionUser = user.id
+            sessionUsername = user.username
+            sessionType = "administrator"
+
+            print("Logged in.")
+
+        case _:
+            print("invalid login type.\naccepted login types are:\n\n-> member\n-> trainer\n-> admin\n")
+
+def logout():
+    print("Logging out...")
+    sessionUser = -1
+    sessionUsername = ""
+    sessionType = ""
+    print("Logged out.")
+
 
 ########################
 ##  Member Functions  ##
@@ -213,11 +293,17 @@ class Repl(code.InteractiveConsole):
         tokens = source.split()
         command = tokens[0]
         args = tokens[1:]
-        if debug:
+        if DEBUG:
             print(f"command received: {command}\narguments: {args}\n")
+        if loggedIn():
+            print(f"\nCurrent User: {sessionUsername}\n")
         match command:
             case "help":
                 print(helpMsg)
+            case "login":
+                login(args)
+            case "logout":
+                logout()
             case "registerMember":
                 registerMember(args)
             case "viewProfile":
@@ -230,6 +316,8 @@ class Repl(code.InteractiveConsole):
                 exit(0)
             case _:
                 print("command not recognized:", source)
+
+        
 
 
 ## create an interactive console

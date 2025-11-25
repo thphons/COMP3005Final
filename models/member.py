@@ -8,7 +8,7 @@ class Member(Base):
     __tablename__ = "members"
 
     id = Column(Integer, primary_key=True)
-    username = Column(String(100), nullable=False)
+    username = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(100), nullable=False)
     name = Column(String(100), nullable=False)
     dob = Column(DateTime(), default=datetime.now)

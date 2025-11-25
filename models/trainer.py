@@ -9,7 +9,7 @@ class Trainer(Base):
     __tablename__ = "trainers"
 
     id = Column(Integer, primary_key=True)
-    username = Column(String(100), nullable=False)
+    username = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(100), nullable=False)
     name = Column(String(100), nullable=False)
     dob = Column(DateTime(), default=datetime.now)
