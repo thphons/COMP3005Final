@@ -7,4 +7,4 @@ class Room(Base):
     __tablename__ = "rooms"
 
     id = Column(Integer, primary_key=True)
-    roomNumber = Column(Integer, nullable=False)
+    room_number = Column(Integer, nullable=False)

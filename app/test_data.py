@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models.member import Member
 from models.admin import Administrator
 from models.trainer import Trainer
+from models.room import Room
 from models.health_metric import Health_Metric
 from models.base import Base
 
@@ -178,3 +179,21 @@ def createInitialRecords(session):
             session.add(newGoal)
             session.commit()
             print(f"Added a goal for member {first_member.name}")
+
+    #add 3 rooms
+    new_rooms = [
+        Room(
+            room_number = 101,
+        ),
+        Room(
+            room_number = 102,
+        ),
+        Room(
+            room_number = 103,
+        )
+    ]
+    existing_rooms = session.query(Room).all()
+    if len(existing_rooms) == 0:
+        session.add_all(new_rooms)
+        session.commit()
+        print(f"Added {len(new_rooms)} rooms")

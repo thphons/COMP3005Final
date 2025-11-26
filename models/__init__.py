@@ -8,6 +8,7 @@ __all__ = [
     "Administrator",
     "HealthMetric",
     "Session",
+    "Class",
     "Availability",
     "Room",
 ]

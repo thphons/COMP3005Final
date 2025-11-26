@@ -3,6 +3,12 @@
 ##  COMP 3005 Fall 2025
 #   main.py
 
+## List of tests
+
+# registerMember
+
+# updateMember email
+
 import code
 import re
 import sys
@@ -102,10 +108,10 @@ trainerHelpMsg = (
     "list all commands\n"
     "   lookupMember <name>                                                             "
     "lookup the member with the specified name\n"
-    "   logout                                                                          "
-    "log out of the session\n"
     "   addAvailability <start_time> <end_time> <type>                                  "
     "add a new availability\n"
+    "   logout                                                                          "
+    "log out of the session\n"
     "   exit                                                                            "
     "exit the program\n"
 )
@@ -114,10 +120,22 @@ adminHelpMsg = (
     "\nValid commands are:\n"
     "   help                                                                            "
     "list all commands\n"
-    "   registerMember <username> <password> <name> <dob> <gender> <email> <phone>      "
-    "register as a member\n"
-    "   login <login_type> <username> <password>                                        "
-    "login\n"
+    "   bookClass <class_id> <room_id>                                                  "
+    "assign the specified class to the specified room\n"
+    "   bookSession <session_id> <room_id>                                              "
+    "assign the specified session to the specified room\n"
+    "   createNewClass <room_id> <start_time> <end_time> <trainer_id>                   "
+    "create a new class with the specified data\n"
+    "   assignTrainerToClass <class_id> <trainer_id>                                    "
+    "assign the specified trainer to the specified class\n"
+    "   assignTrainerToSession <session_id> <trainer_id>                                "
+    "assign the specified trainer to the specified session\n"
+    "   updateClassTime <class_id> <start_time> <end_time>                              "
+    "update the time for the specified class\n"
+    "   updateSessionTime <session_id> <start_time> <end_time>                          "
+    "update the time for the specified session\n"
+    "   logout                                                                          "
+    "log out of the session\n"
     "   exit                                                                            "
     "exit the program\n"
 )
@@ -196,6 +214,66 @@ def validPhone(phone):
         return False
     return True
 
+def checkAvailabilities(trainer_id, start_time, end_time):
+    availabilities_query = select(Availability).where(Availability.trainer == trainer_id)
+    availabilities = session.scalars(availabilities_query).all()
+
+    for availability in availabilities:
+        if (availability.start_time <= start_time and 
+            availability.end_time >= end_time):
+            return true
+
+    return false
+
+def checkConflict(start_time_a, end_time_a, start_time_b, end_time_b):
+    return  ((start_time_a < start_time_b and 
+             end_time_a > start_time_b) or
+            (start_time_a > start_time_b and
+             end_time_a < end_time_b) or
+            (start_time_a < end_time_b and
+             end_time_a > end_time_b) or
+            (start_time_a < start_time_b and
+             end_time_a > end_time_b))
+
+def checkRoomAvailability(room_id, start_time, end_time):
+    classes_query = select(Class).where(Class.room_id == room_id)
+    classes = session.scalars(classes_query).all()
+
+    private_sessions_query = select(Session).where(Session.room_id == room_id)
+    private_sessions = session.scalars(private_sessions_query).all()
+
+    for each_class in classes:
+        if checkConflict(start_time, end_time, each_class.start_time, each_class.end_time):
+            return false
+
+    for private_session in private_sessions:
+        if checkConflict(start_time, end_time, private_session.start_time, private_session.end_time):
+            return false
+
+    return true
+
+def checkTrainerAvailability(trainer_id, start_time, end_time):
+    classes_query = select(Class).where(Class.trainer_id == trainer_id)
+    classes = session.scalars(classes_query).all()
+
+    private_sessions_query = select(Session).where(Session.trainer_id == trainer_id)
+    private_sessions = session.scalars(private_sessions_query).all()
+
+    ## TODO: -- print errors here?
+
+    for each_class in classes:
+        if checkConflict(start_time, end_time, each_class.start_time, each_class.end_time):
+            return false
+
+    for private_session in private_sessions:
+        if checkConflict(start_time, end_time, private_session.start_time, private_session.end_time):
+            return false
+
+    if not checkAvailabilities(trainer_id, start_time, end_time):
+        return false
+
+    return true
+
 def loggedIn():
     return 'id' in session_data
 
@@ -271,6 +349,8 @@ def logout():
 ########################
 
 ## Function 1 -- User Registration
+##################################
+
 def registerMember(args):
     print("register a new member...")
 
@@ -306,6 +386,8 @@ def registerMember(args):
     print("Please login.")
 
 ## Function 2 -- Profile Management
+###################################
+
 def viewProfile(args):
     print("viewing current profile...")
 
@@ -409,12 +491,16 @@ def logMetrics(args):
     session.commit()
 
 ## Function 3 -- Health History
+###############################
+
 def healthHistory(args):
     print("showing member health history...")
 
 ## TODO: -- add multiple health metrics at once?
 
 ## Function 4 -- Dashboard TODO: -- classes?
+############################################
+
 def showDashboard(args):
     print("showing member dashboard...\n")
 
@@ -445,6 +531,8 @@ def showDashboard(args):
 #########################
 
 ## Function 5 -- Set Availability
+#################################
+
 def addAvailability(args):
     print("adding new availability...")
 
@@ -466,18 +554,11 @@ def addAvailability(args):
     endTime = datetime.strptime(args[1], "%Y-%m-%d")
 
     for availability in availabilities:
-        if  ((startTime < availability.start_time and 
-             endTime > availability.start_time) or
-            (startTime > availability.start_time and
-             endTime < availability.end_time) or
-            (startTime < availability.end_time and
-             endTime > availability.end_time) or
-            (startTime < availability.start_time and
-             endTime > availability.end_time)):
-            print("Availability conflicts with other availabilities.")
+        if checkAvailability(startTime, endTime, availability.start_time, availability.end_time):
+            print("found conflict with current availabilities.")
             return
     
-    #check for scheduled conflicts
+    ## TODO: -- check for scheduled conflicts
 
     newAvailability = Availability(
         trainer_id = session_data['id'],
@@ -492,13 +573,12 @@ def addAvailability(args):
     print("Successfully added new availability.")
 
 ## Function 6 -- Member Lookup
-def lookupMember(args):
+##############################
+
+def lookupMember(args): 
     print("looking up member...")
 
-    #check arguments
-    if not (checkArgumentCount(args, 1) or checkArgumentCount(args, 2)):
-        return
-
+    #check arguments --  allow for one or two
     if len(args) == 2:
         member_name = args[0] + " " + args[1]
     elif len(args) == 1:
@@ -506,11 +586,12 @@ def lookupMember(args):
     else:
         checkArgumentCount(args, -1)
 
+    ## TODO: -- case insensitive
     member_query = select(Member).where(Member.name == member_name)
     member = session.scalars(member_query).first()
 
     if not member:
-        print(f"no member found named {args[0]}")
+        print(f"no member found named {member_name}")
         return
 
     printMemberDetails(member)
@@ -520,15 +601,203 @@ def lookupMember(args):
 ###############################
 
 ## Function 7 -- Room Booking
-def bookRoom(args):
-    print("book a room...")
+#############################
+
+def bookClass(args):
+    print("book a room for a class...")
+
+    #check arguments
+    checkArgumentCount(args, 2)
+
+    #check that the room is free
+    currentClass = get(Class, args[0])
+    
+    if not currentClass:
+        print("no class found with the specified id")
+        return
+    
+    if not checkRoomAvailability(args[1], currentClass.start_time, currentClass.end_time):
+        print("found time conflict with the specified room.")
+        return
+
+    #update the room for the class
+    currentClass.room_id = args[1]
+    session.commit()
+
+def bookSession(args):
+    print("book a room for a session...")
+
+    #check arguments
+    checkArgumentCount(args, 2)
+
+    #check that the room is free
+    currentSession = get(Session, args[0])
+    
+    if not currentSession:
+        print("no class found with the specified id")
+        return
+    
+    if not checkRoomAvailability(args[1], currentSession.start_time, currentSession.end_time):
+        print("found time conflict with the specified room.")
+        return
+
+    #update the room for the class
+    currentSession.room_id = args[1]
+    session.commit()
 
 ## Function 8 -- Class Management
+#################################
+
 def createNewClass(args):
     print("creating a new class...")
 
-def assignTrainer(args):
+    checkArgumentCount(args, 4)
+
+    #check for valid datetimes
+    if not validDate(args[1]):
+        print("invalid datetime format for start time")
+        return
+
+    if not validDate(args[2]):
+        print("invalid datetime format for start time")
+        return
+
+    #check for valid trainer id
+    currentTrainer = session.get(Trainer, args[3])
+
+    if not currentTrainer:
+        print("not trainer for the specified trainer id")
+        return
+
+    #check room availability
+    if not checkRoomAvailability(args[0], datetime(args[1]), datetime(args[2])):
+        print("found time conflict for the specified room")
+        return
+
+    #check trainer availability
+    if not checkTrainerAvailability(args[4], datetime[args[1]], datetime[args[2]]):
+        print("trainer not available at the specified time")
+        return
+
+    newClass = Class(
+        room_id = args[0],
+        start_time = datetime(args[1]),
+        end_time = datetime(args[2]),
+        trainer_id = args[3],
+    )
+
+    session.add(newClass)
+    session.commit()
+
+def assignTrainerToClass(args):
     print("assigning a trainer to a class...")
+
+    #check arguments
+    checkArgumentCount(args, 2)
+
+    currentClass = session.get(Class, args[0])
+
+    if not currentClass:
+        print("no class found with the specified id")
+        return
+
+    currentTrainer = session.get(Trainer, args[1])
+
+    if not currentTrainer:
+        print("no trainer found with the specified id")
+        return
+
+    #check availability
+    if not checkTrainerAvailability(trainer_id, currentClass.start_time, currentClass.end_time):
+        print("the trainer is not available at the specified time")
+
+    currentClass.trainer_id = currentTrainer.trainer_id
+    session.commit()
+
+def assignTrainerToSession(args):
+    print("assigning a trainer to a session...")
+
+    #check arguments
+    checkArgumentCount(args, 2)
+
+    currentSession = session.get(Session, args[0])
+
+    if not currentSession:
+        print("no session found with the specified id")
+        return
+
+    currentTrainer = session.get(Trainer, args[1])
+
+    if not currentTrainer:
+        print("no trainer found with the specified id")
+        return
+
+    #check availability
+    if not checkTrainerAvailability(trainer_id, currentSession.start_time, currentSession.end_time):
+        print("the trainer is not available at the specified time")
+
+    currentSession.trainer_id = currentTrainer.trainer_id
+    session.commit()
+
+def updateClassTime(args):
+    print("updating session time...")
+
+    checkArgumentCount(args, 3)
+
+    currentClass = session.get(Class, args[0])
+
+    if not currentClass:
+        print("no class found with the specified id")
+        return
+
+    #check valid datetimes
+    if not validDate(args[1]):
+        print("start time is not a valid datetime")
+
+    newStartTime = datetime(args[1])
+
+    if not validDate(args[2]):
+        print("end time is not a valid datetime")
+
+    newEndTime = datetime(args[2])        
+
+    if not checkTrainerAvailability(currentClass.trainer_id, newStartTime, newEndTime):
+        print("trainer not available at the specified time")
+
+    currentClass.start_time = newStartTime
+    currentClass.end_time = newEndTime
+    session.commit()
+
+def updateSessionTime(args):
+    print("updating session time...")
+
+    checkArgumentCount(args, 3)
+
+    checkArgumentCount(args, 3)
+
+    currentSession = session.get(Session, args[0])
+
+    if not currentSession:
+        print("no session found with the specified id")
+        return
+
+    #check valid datetimes
+    if not validDate(args[1]):
+        print("start time is not a valid datetime")
+
+    newStartTime = datetime(args[1])
+
+    if not validDate(args[2]):
+        print("end time is not a valid datetime")
+
+    newEndTime = datetime(args[2])        
+
+    if not checkTrainerAvailability(currentSession.trainer_id, newStartTime, newEndTime):
+        print("trainer not available at the specified time")
+
+    currentSession.start_time = newStartTime
+    currentSession.end_time = newEndTime
+    session.commit()
 
 ## TODO: -- update schedules?
 
@@ -591,9 +860,22 @@ def commandAdmin(command, args, source):
             print(adminHelpMsg)
         case "logout":
             logout()
+        case "bookClass":
+            bookClass(args)
+        case "bookSession":
+            bookSession(args)
+        case "createNewClass":
+            createNewClass(args)
+        case "assignTrainerToClass":
+            assignTrainerToClass(args)
+        case "assignTrainerToSession":
+            assignTrainerToSession(args)
+        case "updateClassTime":
+            updateClassTime(args)
+        case "updateSessoinTime":
+            updateSessionTime(args)
         case _:
             print("admin command not recognized:", source)
-    
 
 # create a read-eval-print loop
 class Repl(code.InteractiveConsole):
