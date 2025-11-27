@@ -197,3 +197,5 @@ def createInitialRecords(session):
         session.add_all(new_rooms)
         session.commit()
         print(f"Added {len(new_rooms)} rooms")
+
+        

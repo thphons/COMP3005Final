@@ -1,0 +1,21 @@
+Overview of ER Diagram
+
+Overview of ER Mapping
+
+Overview of ORM use
+ - definitions
+ - queries
+ - updates 
+
+Functional Demonstration
+
+for each feature
+    - show code that performs operation
+    - success case
+    - failure case
+
+Overview of code structure 
+
+Describe login process and help messages
+
+    

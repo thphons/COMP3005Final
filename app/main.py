@@ -7,7 +7,43 @@
 
 # registerMember
 
-# updateMember email
+# login member
+
+# updateMemberEmail
+
+# logGoal
+
+# logMetrics
+
+# showDashboard
+
+# logout
+
+# login trainer
+
+# addAvailability
+
+# lookupMember
+
+# logout
+
+# login admin
+
+# bookClass
+
+# bookSession
+
+# createNewClass
+
+# assignTrainerToClass
+
+# assignTrainerToSession
+
+# updateClassTime
+
+# updateSessionTime
+
+# logout
 
 import code
 import re
