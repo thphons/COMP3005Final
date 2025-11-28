@@ -11,4 +11,3 @@ class Availability(Base):
     trainer_id = Column(Integer, ForeignKey("trainers.id"), primary_key=True)
     start_time = Column(DateTime(), default=datetime.now)
     end_time = Column(DateTime(), default=datetime.now)
-    availability_type = Column(String(100), nullable=False)

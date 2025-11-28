@@ -49,7 +49,7 @@ import code
 import re
 import sys
 from pathlib import Path
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select, insert, update, delete
@@ -66,14 +66,16 @@ from models.availability import Availability
 from models.health_metric import Health_Metric
 from models.room import Room
 from models.session import Session as TrainingSession
+from models.class_ import Class
 from models.trainer import Trainer
+from models.schedule_view import Schedule_View
 
 # Import test data
 from test_data import createInitialRecords, reset
 
 DEBUG = False
 # Set this flag to True to reset database
-RESET_DATABASE = False
+RESET_DATABASE = True
 
 # engine for Postgres
 url = URL.create(
@@ -170,6 +172,8 @@ adminHelpMsg = (
     "update the time for the specified class\n"
     "   updateSessionTime <session_id> <start_time> <end_time>                          "
     "update the time for the specified session\n"
+    "   viewSchedule                                                                    "
+    "view the current schedule of classes and sessions\n"
     "   logout                                                                          "
     "log out of the session\n"
     "   exit                                                                            "
@@ -213,6 +217,10 @@ def printMemberDetails(member):
         print("\nShowing Latest Record:")
         printMetric(record)
 
+def printSchedule(schedule):
+    for event in schedule:
+        print(f"Room ID: {event.room_id}, Start Time: {event.start_time}, End Time: {event.end_time}, Trainer ID: {event.trainer_id}")
+
 def printMetric(metric):
     if metric.record_type == "goal":
         print(f"Target Date: {metric.date}, Weight: {metric.weight}, Height: {metric.height}, VO2max: {metric.vo2Max}, Body Composition: {metric.body_composition}, Resting Heart Rate: {metric.resting_hr}")
@@ -251,15 +259,15 @@ def validPhone(phone):
     return True
 
 def checkAvailabilities(trainer_id, start_time, end_time):
-    availabilities_query = select(Availability).where(Availability.trainer == trainer_id)
+    availabilities_query = select(Availability).where(Availability.trainer_id == trainer_id)
     availabilities = session.scalars(availabilities_query).all()
 
     for availability in availabilities:
         if (availability.start_time <= start_time and 
             availability.end_time >= end_time):
-            return true
+            return True
 
-    return false
+    return False
 
 def checkConflict(start_time_a, end_time_a, start_time_b, end_time_b):
     return  ((start_time_a < start_time_b and 
@@ -275,40 +283,40 @@ def checkRoomAvailability(room_id, start_time, end_time):
     classes_query = select(Class).where(Class.room_id == room_id)
     classes = session.scalars(classes_query).all()
 
-    private_sessions_query = select(Session).where(Session.room_id == room_id)
+    private_sessions_query = select(TrainingSession).where(TrainingSession.room_id == room_id)
     private_sessions = session.scalars(private_sessions_query).all()
 
     for each_class in classes:
         if checkConflict(start_time, end_time, each_class.start_time, each_class.end_time):
-            return false
+            return False
 
     for private_session in private_sessions:
         if checkConflict(start_time, end_time, private_session.start_time, private_session.end_time):
-            return false
+            return False
 
-    return true
+    return True
 
 def checkTrainerAvailability(trainer_id, start_time, end_time):
     classes_query = select(Class).where(Class.trainer_id == trainer_id)
     classes = session.scalars(classes_query).all()
 
-    private_sessions_query = select(Session).where(Session.trainer_id == trainer_id)
+    private_sessions_query = select(TrainingSession).where(TrainingSession.trainer_id == trainer_id)
     private_sessions = session.scalars(private_sessions_query).all()
 
     ## TODO: -- print errors here?
 
     for each_class in classes:
         if checkConflict(start_time, end_time, each_class.start_time, each_class.end_time):
-            return false
+            return False
 
     for private_session in private_sessions:
         if checkConflict(start_time, end_time, private_session.start_time, private_session.end_time):
-            return false
+            return False
 
     if not checkAvailabilities(trainer_id, start_time, end_time):
-        return false
+        return False
 
-    return true
+    return True
 
 def loggedIn():
     return 'id' in session_data
@@ -378,7 +386,6 @@ def logout():
     print("Logging out...")
     session_data.clear()
     print("Logged out.")
-
 
 ########################
 ##  Member Functions  ##
@@ -529,12 +536,31 @@ def logMetrics(args):
 ## Function 3 -- Health History
 ###############################
 
-def healthHistory(args):
+def logHealthHistory(args):
     print("showing member health history...")
+    
+    #check arguments...
+    if not checkArgumentCount(args, 6):
+        return
 
-## TODO: -- add multiple health metrics at once?
+    if not validDate(args[0]):
+        return
 
-## Function 4 -- Dashboard TODO: -- classes?
+    newRecord = Health_Metric(
+        date = datetime(args[0]),
+        record_type = 'record',
+        user_id = session_data['id'],
+        weight = args[1],
+        height = args[2],
+        vo2Max = args[3],
+        body_composition = args[4],
+        resting_hr = args[5],
+    )
+
+    session.add(newRecord)
+    session.commit()
+
+## Function 4 -- Dashboard #TODO: -- classes / sessions?
 ############################################
 
 def showDashboard(args):
@@ -560,7 +586,6 @@ def showDashboard(args):
         print("\nShowing Records:")
         for record in records:
             printMetric(record)
-
 
 #########################
 ##  Trainer Functions  ##
@@ -622,9 +647,17 @@ def lookupMember(args):
     else:
         checkArgumentCount(args, -1)
 
+    #track start time
+    query_start = datetime.now()
+
     ## TODO: -- case insensitive
     member_query = select(Member).where(Member.name == member_name)
     member = session.scalars(member_query).first()
+
+    #track start time
+    query_end = datetime.now()
+
+    print(f"Member lookup completed in {(query_end - query_start * 1000)} milliseconds.")
 
     if not member:
         print(f"no member found named {member_name}")
@@ -651,10 +684,6 @@ def bookClass(args):
     if not currentClass:
         print("no class found with the specified id")
         return
-    
-    if not checkRoomAvailability(args[1], currentClass.start_time, currentClass.end_time):
-        print("found time conflict with the specified room.")
-        return
 
     #update the room for the class
     currentClass.room_id = args[1]
@@ -667,7 +696,7 @@ def bookSession(args):
     checkArgumentCount(args, 2)
 
     #check that the room is free
-    currentSession = get(Session, args[0])
+    currentSession = get(TrainingSession, args[0])
     
     if not currentSession:
         print("no class found with the specified id")
@@ -705,20 +734,23 @@ def createNewClass(args):
         print("not trainer for the specified trainer id")
         return
 
+    start_time = datetime.fromisoformat(args[1])
+    end_time = datetime.fromisoformat(args[2])
+
     #check room availability
-    if not checkRoomAvailability(args[0], datetime(args[1]), datetime(args[2])):
+    if not checkRoomAvailability(args[0], start_time, end_time):
         print("found time conflict for the specified room")
         return
 
     #check trainer availability
-    if not checkTrainerAvailability(args[4], datetime[args[1]], datetime[args[2]]):
+    if not checkTrainerAvailability(args[3], start_time, end_time):
         print("trainer not available at the specified time")
         return
 
     newClass = Class(
         room_id = args[0],
-        start_time = datetime(args[1]),
-        end_time = datetime(args[2]),
+        start_time = start_time,
+        end_time = end_time,
         trainer_id = args[3],
     )
 
@@ -756,7 +788,7 @@ def assignTrainerToSession(args):
     #check arguments
     checkArgumentCount(args, 2)
 
-    currentSession = session.get(Session, args[0])
+    currentSession = session.get(TrainingSession, args[0])
 
     if not currentSession:
         print("no session found with the specified id")
@@ -811,7 +843,7 @@ def updateSessionTime(args):
 
     checkArgumentCount(args, 3)
 
-    currentSession = session.get(Session, args[0])
+    currentSession = session.get(TrainingSession, args[0])
 
     if not currentSession:
         print("no session found with the specified id")
@@ -835,10 +867,14 @@ def updateSessionTime(args):
     currentSession.end_time = newEndTime
     session.commit()
 
-## TODO: -- update schedules?
+def viewSchedule():
+    print("showing schedule...")
+    schedule_query = select(Schedule_View)
+    schedule = session.scalars(schedule_query).all()
+    printSchedule(schedule)
 
 ##########################
-##  Command processing  ##
+##  Command Processing  ##
 ##########################
 
 def commandLoggedOut(command, args, source):
@@ -908,8 +944,10 @@ def commandAdmin(command, args, source):
             assignTrainerToSession(args)
         case "updateClassTime":
             updateClassTime(args)
-        case "updateSessoinTime":
+        case "updateSessionTime":
             updateSessionTime(args)
+        case "viewSchedule":
+            viewSchedule()
         case _:
             print("admin command not recognized:", source)
 

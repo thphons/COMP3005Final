@@ -10,7 +10,7 @@ class Member(Base):
     id = Column(Integer, primary_key=True)
     username = Column(String(100), unique=True, nullable=False)
     password_hash = Column(String(100), nullable=False)
-    name = Column(String(100), nullable=False)
+    name = Column(String(100), nullable=False, index=True) ## Index
     dob = Column(DateTime(), default=datetime.now)
     gender = Column(String(100), nullable=False)
     email = Column(String(100), unique=True, nullable=False)

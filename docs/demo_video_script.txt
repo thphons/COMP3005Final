@@ -3,9 +3,11 @@ Overview of ER Diagram
 Overview of ER Mapping
 
 Overview of ORM use
- - definitions
- - queries
- - updates 
+    - definitions
+    - queries
+    - updates
+
+Describe login process and help messages
 
 Functional Demonstration
 
@@ -14,8 +16,10 @@ for each feature
     - success case
     - failure case
 
-Overview of code structure 
+Overview of code structure
 
-Describe login process and help messages
+Index -> lookupMember
+View -> viewSchedule
+Trigger -> 
 
     

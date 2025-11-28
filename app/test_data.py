@@ -12,9 +12,24 @@ from models.trainer import Trainer
 from models.room import Room
 from models.health_metric import Health_Metric
 from models.base import Base
+from models.class_ import Class
+from models.session import Session as TrainingSession
+from models.availability import Availability
 
 
 def reset(engine):
+    # Drop schedule view first
+    drop_views_sql = """
+    DROP TABLE IF EXISTS schedule CASCADE;
+    """
+    
+    try:
+        with engine.begin() as conn:
+            conn.execute(drop_views_sql)
+        print("Dropped views")
+    except Exception as e:
+        print(f"Error dropping views: {e}")
+
     Base.metadata.drop_all(engine)
 
 
@@ -198,4 +213,135 @@ def createInitialRecords(session):
         session.commit()
         print(f"Added {len(new_rooms)} rooms")
 
+    # add 3 classes
+    new_classes = [
+        Class(
+            room_id=1,
+            start_time=datetime(2025, 1, 15, 9, 0),
+            end_time=datetime(2025, 1, 15, 10, 0),
+            trainer_id=1,
+        ),
+        Class(
+            room_id=2,
+            start_time=datetime(2025, 1, 15, 10, 30),
+            end_time=datetime(2025, 1, 15, 11, 30),
+            trainer_id=2,
+        ),
+        Class(
+            room_id=3,
+            start_time=datetime(2025, 1, 15, 14, 0),
+            end_time=datetime(2025, 1, 15, 15, 0),
+            trainer_id=3,
+        ),
+    ]
+    
+    existing_classes = session.query(Class).all()
+    if len(existing_classes) == 0:
+        session.add_all(new_classes)
+        session.commit()
+        print(f"Added {len(new_classes)} classes")
+    
+    # add 3 sessions
+    new_sessions = [
+        TrainingSession(
+            room_id=1,
+            start_time=datetime(2025, 1, 16, 9, 0),
+            end_time=datetime(2025, 1, 16, 10, 0),
+            trainer_id=4,
+        ),
+        TrainingSession(
+            room_id=2,
+            start_time=datetime(2025, 1, 16, 10, 30),
+            end_time=datetime(2025, 1, 16, 11, 30),
+            trainer_id=5,
+        ),
+        TrainingSession(
+            room_id=3,
+            start_time=datetime(2025, 1, 16, 14, 0),
+            end_time=datetime(2025, 1, 16, 15, 0),
+            trainer_id=6,
+        ),
+    ]
+    
+    existing_sessions = session.query(TrainingSession).all()
+    if len(existing_sessions) == 0:
+        session.add_all(new_sessions)
+        session.commit()
+        print(f"Added {len(new_sessions)} sessions")
+
+    # Add availability for trainers based on their classes and sessions
+    existing_availability = session.query(Availability).all()
+    if len(existing_availability) == 0:
+        availability_records = []
         
+        # Get all classes and create availability for each trainer
+        all_classes = session.query(Class).all()
+        for class_obj in all_classes:
+            availability_records.append(
+                Availability(
+                    trainer_id=class_obj.trainer_id,
+                    start_time=class_obj.start_time,
+                    end_time=class_obj.end_time,
+                )
+            )
+        
+        # Get all sessions and create availability for each trainer
+        all_sessions = session.query(TrainingSession).all()
+        for session_obj in all_sessions:
+            availability_records.append(
+                Availability(
+                    trainer_id=session_obj.trainer_id,
+                    start_time=session_obj.start_time,
+                    end_time=session_obj.end_time,
+                )
+            )
+        
+        session.add_all(availability_records)
+        session.commit()
+        print(f"Added {len(availability_records)} availability records for trainers")
+
+    # create trigger to prevent room conflicts
+    trigger_sql = """
+    CREATE OR REPLACE FUNCTION check_room_conflict()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      IF EXISTS (
+        SELECT 1 FROM classes 
+        WHERE room_id = NEW.room_id
+        AND (
+          (NEW.start_time < end_time AND NEW.end_time > start_time)
+        )
+      ) OR EXISTS (
+        SELECT 1 FROM sessions
+        WHERE room_id = NEW.room_id
+        AND (
+          (NEW.start_time < end_time AND NEW.end_time > start_time)
+        )
+      ) THEN
+        RAISE EXCEPTION 'Room % is already booked during this time', NEW.room_id;
+      END IF;
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql;
+
+    DROP TRIGGER IF EXISTS prevent_class_room_conflict ON classes;
+    CREATE TRIGGER prevent_class_room_conflict
+    BEFORE INSERT OR UPDATE ON classes
+    FOR EACH ROW
+    EXECUTE FUNCTION check_room_conflict();
+
+    DROP TRIGGER IF EXISTS prevent_session_room_conflict ON sessions;
+    CREATE TRIGGER prevent_session_room_conflict
+    BEFORE INSERT OR UPDATE ON sessions
+    FOR EACH ROW
+    EXECUTE FUNCTION check_room_conflict();
+    """
+    
+    try:
+        session.execute(trigger_sql)
+        session.commit()
+        print("Created room conflict prevention triggers")
+    except Exception as e:
+        print(f"Triggers already exist: {e}")
+
+
