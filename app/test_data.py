@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
+from sqlalchemy import text
 
 # Add parent directory to path so models is importable
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -18,23 +19,22 @@ from models.availability import Availability
 
 
 def reset(engine):
-    # Drop schedule view first
-    drop_views_sql = """
+    drop_schedule_sql = """
+    DROP VIEW IF EXISTS schedule CASCADE;
     DROP TABLE IF EXISTS schedule CASCADE;
     """
-    
     try:
         with engine.begin() as conn:
-            conn.execute(drop_views_sql)
-        print("Dropped views")
+            conn.execute(text(drop_schedule_sql))
+        print("Dropped schedule view/table (if existed).")
     except Exception as e:
-        print(f"Error dropping views: {e}")
+        print(f"Error dropping schedule view/table: {e}")
 
     Base.metadata.drop_all(engine)
+    print("Dropped all tables")
 
 
 def createInitialRecords(session):
-
     # 150 unique members with real names
     member_names = [
         "Alice Smith", "Bob Johnson", "Carol Williams", "David Brown", "Emma Davis",
@@ -300,48 +300,8 @@ def createInitialRecords(session):
         session.commit()
         print(f"Added {len(availability_records)} availability records for trainers")
 
-    # create trigger to prevent room conflicts
-    trigger_sql = """
-    CREATE OR REPLACE FUNCTION check_room_conflict()
-    RETURNS TRIGGER AS $$
-    BEGIN
-      IF EXISTS (
-        SELECT 1 FROM classes 
-        WHERE room_id = NEW.room_id
-        AND (
-          (NEW.start_time < end_time AND NEW.end_time > start_time)
-        )
-      ) OR EXISTS (
-        SELECT 1 FROM sessions
-        WHERE room_id = NEW.room_id
-        AND (
-          (NEW.start_time < end_time AND NEW.end_time > start_time)
-        )
-      ) THEN
-        RAISE EXCEPTION 'Room % is already booked during this time', NEW.room_id;
-      END IF;
-      RETURN NEW;
-    END;
-    $$ LANGUAGE plpgsql;
 
-    DROP TRIGGER IF EXISTS prevent_class_room_conflict ON classes;
-    CREATE TRIGGER prevent_class_room_conflict
-    BEFORE INSERT OR UPDATE ON classes
-    FOR EACH ROW
-    EXECUTE FUNCTION check_room_conflict();
-
-    DROP TRIGGER IF EXISTS prevent_session_room_conflict ON sessions;
-    CREATE TRIGGER prevent_session_room_conflict
-    BEFORE INSERT OR UPDATE ON sessions
-    FOR EACH ROW
-    EXECUTE FUNCTION check_room_conflict();
-    """
-    
-    try:
-        session.execute(trigger_sql)
-        session.commit()
-        print("Created room conflict prevention triggers")
-    except Exception as e:
-        print(f"Triggers already exist: {e}")
-
-
+    print("classes:", session.execute(text("SELECT count(*) FROM classes")).scalar())
+    print("sessions:", session.execute(text("SELECT count(*) FROM sessions")).scalar())
+    print("schedule types:", session.execute(text("SELECT schedule_type, count(*) FROM schedule GROUP BY schedule_type")).fetchall())
+    print("schedule sample:", session.execute(text("SELECT * FROM schedule ORDER BY start_time LIMIT 10")).fetchall())

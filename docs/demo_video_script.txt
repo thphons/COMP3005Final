@@ -9,17 +9,77 @@ Overview of ORM use
 
 Describe login process and help messages
 
+Overview of code structure
+
 Functional Demonstration
 
-for each feature
+1 - registerMember
     - show code that performs operation
     - success case
     - failure case
 
-Overview of code structure
+login member
 
-Index -> lookupMember
-View -> viewSchedule
-Trigger -> 
+help member
+
+2 - viewProfile
+
+2 - updateMemberEmail
+    - show code that performs operation
+    - success case
+    - failure case
+
+2 - logGoal
+    - show code that performs operation
+    - success case
+    - failure case
+
+3 - logHealthHistory
+    - show code that performs operation
+    - success case
+    - failure case
+
+4 - showDashboard
+    - show code that performs operation
+    - show blank case
+    - show complete case
+
+logout
+
+login trainer
+
+5 - addAvailability
+    - show code that performs operation
+    - success case
+    - failure case
+
+6 - lookupMember* Hannah Syrett
+    -- show Index!!
+    - show code that performs operation
+    - success case
+    - failure case
+
+logout
+
+login admin
+
+7 - bookClass*
+    -- show trigger!!
+    - show code that performs operation
+    - success case
+    - failure case
+
+8 - createNewClass
+    - show code that performs operation
+    - success case
+    - failure case
+
+8 - viewSchedule
+    - show code that performs operation
+    - success case
+    - failure case
+
+logout
+
 
     

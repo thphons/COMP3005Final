@@ -3,57 +3,18 @@
 ##  COMP 3005 Fall 2025
 #   main.py
 
-## List of tests
-
-# registerMember
-
-# login member
-
-# updateMemberEmail
-
-# logGoal
-
-# logMetrics
-
-# showDashboard
-
-# logout
-
-# login trainer
-
-# addAvailability
-
-# lookupMember
-
-# logout
-
-# login admin
-
-# bookClass
-
-# bookSession
-
-# createNewClass
-
-# assignTrainerToClass
-
-# assignTrainerToSession
-
-# updateClassTime
-
-# updateSessionTime
-
-# logout
-
 import code
 import re
 import sys
 from pathlib import Path
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine, event, DDL, text
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select, insert, update, delete
+from sqlalchemy import Column, Integer
 from datetime import datetime
+from sqlalchemy import Table, MetaData
+from sqlalchemy.orm import registry
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -68,10 +29,15 @@ from models.room import Room
 from models.session import Session as TrainingSession
 from models.class_ import Class
 from models.trainer import Trainer
-from models.schedule_view import Schedule_View
 
 # Import test data
 from test_data import createInitialRecords, reset
+
+# Import trigger
+from trigger import create_room_conflict_trigger
+
+# Import view
+import view
 
 DEBUG = False
 # Set this flag to True to reset database
@@ -101,6 +67,22 @@ session = DBSession()
 
 # insert initial records
 createInitialRecords(session)
+
+create_room_conflict_trigger(session)
+
+metadata_reflect = MetaData()
+schedule_table = Table(
+    "schedule",
+    metadata_reflect,
+    Column("event_id", Integer, primary_key=True),  # explicit PK for the view
+    autoload_with=engine,
+)
+
+mapper_registry = registry()
+
+@mapper_registry.mapped
+class ScheduleView:
+    __table__ = schedule_table
 
 ## define banner, exit and help messages
 bannerMsg = "COMP3005 Final Project!"
@@ -132,6 +114,8 @@ memberHelpMsg = (
     "add a new goal or update your current goal\n"
     "   logMetrics <weight> <height> <vo2max> <body_comp> <resting_hr>                  "
     "log your current health metrics\n"
+    "   logHealthHistory <date> <weight> <height> <vo2max> <body_comp> <resting_hr>     "
+    "log historic health metrics\n"
     "   showDashboard                                                                   "
     "display your goal and health metrics\n"
     "   logout                                                                          "
@@ -146,7 +130,7 @@ trainerHelpMsg = (
     "list all commands\n"
     "   lookupMember <name>                                                             "
     "lookup the member with the specified name\n"
-    "   addAvailability <start_time> <end_time> <type>                                  "
+    "   addAvailability <start_time> <end_time>                                         "
     "add a new availability\n"
     "   logout                                                                          "
     "log out of the session\n"
@@ -219,7 +203,7 @@ def printMemberDetails(member):
 
 def printSchedule(schedule):
     for event in schedule:
-        print(f"Room ID: {event.room_id}, Start Time: {event.start_time}, End Time: {event.end_time}, Trainer ID: {event.trainer_id}")
+        print(f"Room ID: {event.room_id}, Start Time: {event.start_time}, End Time: {event.end_time}, Trainer ID: {event.trainer_id}, Event Type: {event.schedule_type}")
 
 def printMetric(metric):
     if metric.record_type == "goal":
@@ -236,10 +220,10 @@ def checkArgumentCount(args, count):
 
 def validDate(date):
     try:
-        dateCheck = datetime.strptime(date, "%Y-%m-%d")
+        dateCheck = datetime.fromisoformat(date)
         return True
     except ValueError:
-        print("invalid Dob.\ndate format is YYYY-mm-dd")
+        print("invalid Dob.\ndate format must be iso format")
         return False
 
 def validEmail(email):
@@ -598,7 +582,7 @@ def addAvailability(args):
     print("adding new availability...")
 
     #check arguments
-    if not checkArgumentCount(args, 3):
+    if not checkArgumentCount(args, 2):
         return
     
     if not validDate(args[0]):
@@ -607,17 +591,17 @@ def addAvailability(args):
     if not validDate(args[1]):
         return
 
+    startTime = datetime.fromisoformat(args[0])
+    endTime = datetime.fromisoformat(args[1])
+
+    if endTime < startTime:
+        print("the end time of an availability cannot be before the start time.")
+        return
+
     #check for availability conflicts
-    availability_query = select(Availability).where(Availability.trainer_id == session_data['id'])
-    availabilities = session.scalars(availability_query).all()
-
-    startTime = datetime.strptime(args[0], "%Y-%m-%d")
-    endTime = datetime.strptime(args[1], "%Y-%m-%d")
-
-    for availability in availabilities:
-        if checkAvailability(startTime, endTime, availability.start_time, availability.end_time):
-            print("found conflict with current availabilities.")
-            return
+    if checkTrainerAvailability(session_data['id'], startTime, endTime):
+        print("found conflict with current availabilities.")
+        return
     
     ## TODO: -- check for scheduled conflicts
 
@@ -625,7 +609,6 @@ def addAvailability(args):
         trainer_id = session_data['id'],
         start_time = args[0],
         end_time = args[1],
-        availability_type = args[2],
     )
 
     session.add(newAvailability)
@@ -657,7 +640,7 @@ def lookupMember(args):
     #track start time
     query_end = datetime.now()
 
-    print(f"Member lookup completed in {(query_end - query_start * 1000)} milliseconds.")
+    print(f"Member lookup completed in {((query_end - query_start) * 1000)} milliseconds.")
 
     if not member:
         print(f"no member found named {member_name}")
@@ -679,14 +662,20 @@ def bookClass(args):
     checkArgumentCount(args, 2)
 
     #check that the room is free
-    currentClass = get(Class, args[0])
+    currentClass = session.get(Class, args[0])
     
     if not currentClass:
         print("no class found with the specified id")
         return
 
+    currentRoom = session.get(Room, args[1])
+
+    if not currentRoom:
+        print("no room found with the specified id")
+        return
+
     #update the room for the class
-    currentClass.room_id = args[1]
+    currentClass.room_id = currentRoom.id
     session.commit()
 
 def bookSession(args):
@@ -696,7 +685,7 @@ def bookSession(args):
     checkArgumentCount(args, 2)
 
     #check that the room is free
-    currentSession = get(TrainingSession, args[0])
+    currentSession = session.get(TrainingSession, args[0])
     
     if not currentSession:
         print("no class found with the specified id")
@@ -868,9 +857,11 @@ def updateSessionTime(args):
     session.commit()
 
 def viewSchedule():
-    print("showing schedule...")
-    schedule_query = select(Schedule_View)
+    schedule_query = select(ScheduleView).order_by(ScheduleView.start_time)
     schedule = session.scalars(schedule_query).all()
+    if not schedule:
+        print("No classes or sessions scheduled found")
+        return
     printSchedule(schedule)
 
 ##########################
@@ -906,8 +897,8 @@ def commandMember(command, args, source):
             logGoal(args)
         case "logMetrics":
             logMetrics(args)
-        case "healthHistory":
-            healthHistory(args)
+        case "logHealthHistory":
+            logHealthHistory(args)
         case "showDashboard":
             showDashboard(args)
         case _:
