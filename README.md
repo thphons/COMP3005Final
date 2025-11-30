@@ -42,5 +42,5 @@ In pgAdmin 4 (install instructions) create a new postgres database called "stude
 
 Link to Demo Video
 
-https://mediaspace.carleton.ca/media/COMP3005_A3_Q1_Demo/1_5rrgbp61
+https://mediaspace.carleton.ca/media/Cal_McLelland_Final_Project_demo_COMP3005/1_qzntrypw
 
