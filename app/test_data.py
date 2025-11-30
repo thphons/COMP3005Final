@@ -299,9 +299,3 @@ def createInitialRecords(session):
         session.add_all(availability_records)
         session.commit()
         print(f"Added {len(availability_records)} availability records for trainers")
-
-
-    print("classes:", session.execute(text("SELECT count(*) FROM classes")).scalar())
-    print("sessions:", session.execute(text("SELECT count(*) FROM sessions")).scalar())
-    print("schedule types:", session.execute(text("SELECT schedule_type, count(*) FROM schedule GROUP BY schedule_type")).fetchall())
-    print("schedule sample:", session.execute(text("SELECT * FROM schedule ORDER BY start_time LIMIT 10")).fetchall())

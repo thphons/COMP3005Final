@@ -7,7 +7,7 @@ import code
 import re
 import sys
 from pathlib import Path
-from sqlalchemy import create_engine, event, DDL, text
+from sqlalchemy import create_engine, event, DDL, text, func
 from sqlalchemy.engine import URL
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import select, insert, update, delete
@@ -15,6 +15,7 @@ from sqlalchemy import Column, Integer
 from datetime import datetime
 from sqlalchemy import Table, MetaData
 from sqlalchemy.orm import registry
+from sqlalchemy.exc import SQLAlchemyError
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -41,7 +42,7 @@ import view
 
 DEBUG = False
 # Set this flag to True to reset database
-RESET_DATABASE = True
+RESET_DATABASE = False
 
 # engine for Postgres
 url = URL.create(
@@ -229,7 +230,7 @@ def validDate(date):
 def validEmail(email):
     emailRegex = r"[^@]+@[^@]+\.[^@]+"
 
-    if not re.match(emailRegex, email):
+    if not re.fullmatch(emailRegex, email):
         print("not a valid email.")
         return False
     return True
@@ -237,7 +238,7 @@ def validEmail(email):
 def validPhone(phone):
     phoneRegex = r"[0-9]{3}[-.\ ]?[0-9]{3}[-.\ ]?[0-9]{4}"
 
-    if not re.match(phoneRegex, phone):
+    if not re.fullmatch(phoneRegex, phone):
         print("not a valid email.")
         return False
     return True
@@ -286,8 +287,6 @@ def checkTrainerAvailability(trainer_id, start_time, end_time):
 
     private_sessions_query = select(TrainingSession).where(TrainingSession.trainer_id == trainer_id)
     private_sessions = session.scalars(private_sessions_query).all()
-
-    ## TODO: -- print errors here?
 
     for each_class in classes:
         if checkConflict(start_time, end_time, each_class.start_time, each_class.end_time):
@@ -405,8 +404,14 @@ def registerMember(args):
         email = args[5],
         phone = args[6]
     )
-    session.add(newMember)
-    session.commit()
+    try:
+        session.add(newMember)
+        session.commit()
+    except SQLAlchemyError as e:
+        session.rollback()
+        print("Register member failed: ", e)
+        return
+
 
     print("Member registered!")
     printMember(newMember)
@@ -418,7 +423,7 @@ def registerMember(args):
 def viewProfile(args):
     print("viewing current profile...")
 
-    user = session.get(Member, session_data['id'])
+    user = session.get(Member, session_data['id']) ## Example for ORM 
 
     printMember(user)
 
@@ -466,7 +471,7 @@ def logGoal(args):
         return
 
     #check if user has a goal...
-    goal_query = select(Health_Metric).where(Health_Metric.user_id == session_data['id'], Health_Metric.record_type == "goal")
+    goal_query = select(Health_Metric).where(Health_Metric.user_id == session_data['id'], Health_Metric.record_type == "goal") ## Example for ORM
     goal = session.scalars(goal_query).first()
 
     #no goal, add one
@@ -482,11 +487,17 @@ def logGoal(args):
             resting_hr = args[5],
         )
 
-        session.add(newGoal)
-        session.commit()
+        try:
+            session.add(newGoal)
+            session.commit()
+        except SQLAlchemyError as e:
+            session.rollback()
+            print("Register member failed: ", e)
+            return
+
         return
 
-    #update current goal
+    #update current goal ## Example for ORM
     goal.date = args[0]  
     goal.weight = args[1]
     goal.height = args[2]
@@ -514,8 +525,13 @@ def logMetrics(args):
         resting_hr = args[4],
     )
 
-    session.add(newRecord)
-    session.commit()
+    try:
+        session.add(newRecord)
+        session.commit()
+    except SQLAlchemyError as e:
+        session.rollback()
+        print("Register member failed: ", e)
+        return
 
 ## Function 3 -- Health History
 ###############################
@@ -531,7 +547,7 @@ def logHealthHistory(args):
         return
 
     newRecord = Health_Metric(
-        date = datetime(args[0]),
+        date = datetime.fromisoformat(args[0]),
         record_type = 'record',
         user_id = session_data['id'],
         weight = args[1],
@@ -541,10 +557,15 @@ def logHealthHistory(args):
         resting_hr = args[5],
     )
 
-    session.add(newRecord)
-    session.commit()
+    try:
+        session.add(newRecord)
+        session.commit()
+    except SQLAlchemyError as e:
+        session.rollback()
+        print("Register member failed: ", e)
+        return
 
-## Function 4 -- Dashboard #TODO: -- classes / sessions?
+## Function 4 -- Dashboard
 ############################################
 
 def showDashboard(args):
@@ -602,8 +623,6 @@ def addAvailability(args):
     if checkTrainerAvailability(session_data['id'], startTime, endTime):
         print("found conflict with current availabilities.")
         return
-    
-    ## TODO: -- check for scheduled conflicts
 
     newAvailability = Availability(
         trainer_id = session_data['id'],
@@ -611,8 +630,13 @@ def addAvailability(args):
         end_time = args[1],
     )
 
-    session.add(newAvailability)
-    session.commit()
+    try:
+        session.add(newAvailability)
+        session.commit()
+    except SQLAlchemyError as e:
+        session.rollback()
+        print("Register member failed: ", e)
+        return
 
     print("Successfully added new availability.")
 
@@ -633,8 +657,7 @@ def lookupMember(args):
     #track start time
     query_start = datetime.now()
 
-    ## TODO: -- case insensitive
-    member_query = select(Member).where(Member.name == member_name)
+    member_query = select(Member).where(Member.name.ilike(member_name.lower()))
     member = session.scalars(member_query).first()
 
     #track start time
@@ -743,8 +766,13 @@ def createNewClass(args):
         trainer_id = args[3],
     )
 
-    session.add(newClass)
-    session.commit()
+    try:
+        session.add(newClass)
+        session.commit()
+    except SQLAlchemyError as e:
+        session.rollback()
+        print("Register member failed: ", e)
+        return
 
 def assignTrainerToClass(args):
     print("assigning a trainer to a class...")
@@ -811,12 +839,12 @@ def updateClassTime(args):
     if not validDate(args[1]):
         print("start time is not a valid datetime")
 
-    newStartTime = datetime(args[1])
+    newStartTime = datetime.fromisoformat(args[1])
 
     if not validDate(args[2]):
         print("end time is not a valid datetime")
 
-    newEndTime = datetime(args[2])        
+    newEndTime = datetime.fromisoformat(args[2])        
 
     if not checkTrainerAvailability(currentClass.trainer_id, newStartTime, newEndTime):
         print("trainer not available at the specified time")
@@ -842,12 +870,12 @@ def updateSessionTime(args):
     if not validDate(args[1]):
         print("start time is not a valid datetime")
 
-    newStartTime = datetime(args[1])
+    newStartTime = datetime.fromisoformat(args[1])
 
     if not validDate(args[2]):
         print("end time is not a valid datetime")
 
-    newEndTime = datetime(args[2])        
+    newEndTime = datetime.fromisoformat(args[2])        
 
     if not checkTrainerAvailability(currentSession.trainer_id, newStartTime, newEndTime):
         print("trainer not available at the specified time")
